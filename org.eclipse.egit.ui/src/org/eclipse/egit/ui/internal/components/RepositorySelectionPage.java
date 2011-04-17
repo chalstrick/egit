@@ -578,6 +578,16 @@ public class RepositorySelectionPage extends WizardPage {
 			}
 		});
 
+		newLabel(g, UIText.RepositorySelectionPage_promptPassword + ":"); //$NON-NLS-1$
+		passText = new Text(g, SWT.BORDER | SWT.PASSWORD);
+		passText.setLayoutData(createFieldGridData());
+		passText.addModifyListener(new ModifyListener() {
+			public void modifyText(final ModifyEvent e) {
+				setURI(uri.setPass(null));
+				password = passText.getText();
+			}
+		});
+
 		newLabel(g, UIText.RepositorySelectionPage_storeInSecureStore);
 		storeCheckbox = new Button(g, SWT.CHECK);
 		storeCheckbox.setSelection(storeInSecureStore);

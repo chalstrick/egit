@@ -33,6 +33,8 @@ class LoginDialog extends Dialog {
 
 	private Text password;
 
+	private Text certPassword;
+
 	private Button storeCheckbox;
 
 	private UserPasswordCredentials credentials;
@@ -90,6 +92,18 @@ class LoginDialog extends Dialog {
 			storeCheckbox.setSelection(true);
 		}
 
+		Label certPasswordLabel = new Label(composite, SWT.NONE);
+		certPasswordLabel.setText(UIText.LoginDialog_certPassword);
+		certPassword = new Text(composite, SWT.PASSWORD | SWT.BORDER);
+		GridDataFactory.fillDefaults().grab(true, false).applyTo(certPassword);
+
+		if(!changeCredentials) {
+			Label storeLabel = new Label(composite, SWT.NONE);
+			storeLabel.setText(UIText.LoginDialog_storeInSecureStore);
+			storeCheckbox = new Button(composite, SWT.CHECK);
+			storeCheckbox.setSelection(true);
+		}
+
 		if (isUserSet)
 			password.setFocus();
 		else
@@ -110,7 +124,7 @@ class LoginDialog extends Dialog {
 	protected void okPressed() {
 		if (user.getText().length() > 0) {
 			credentials = new UserPasswordCredentials(user.getText(),
-					password.getText());
+					password.getText(), certPassword.getText());
 			if(!changeCredentials)
 				storeInSecureStore = storeCheckbox.getSelection();
 		}

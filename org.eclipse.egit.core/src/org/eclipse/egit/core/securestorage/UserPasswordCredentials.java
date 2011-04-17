@@ -16,14 +16,25 @@ public class UserPasswordCredentials {
 
 	private final String user;
 	private final String password;
+	private final String certPassword;
 
 	/**
 	 * @param user
 	 * @param password
 	 */
 	public UserPasswordCredentials(String user, String password) {
+		this(user, password, null);
+	}
+
+	/**
+	 * @param user
+	 * @param password
+	 * @param certPassword
+	 */
+	public UserPasswordCredentials(String user, String password, String certPassword) {
 		this.user = user;
 		this.password = password;
+		this.certPassword = certPassword;
 	}
 
 	/**
@@ -38,5 +49,12 @@ public class UserPasswordCredentials {
 	 */
 	public String getPassword() {
 		return password;
+	}
+
+	/**
+	 * @return certPassword
+	 */
+	public String getCertPassword() {
+		return certPassword;
 	}
 }

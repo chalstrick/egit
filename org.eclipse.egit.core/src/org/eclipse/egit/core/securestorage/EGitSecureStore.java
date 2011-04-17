@@ -27,6 +27,8 @@ public class EGitSecureStore {
 
 	private static final String PASSWORD = "password"; //$NON-NLS-1$
 
+	private static final String CERTPASSWORD = "certPassword"; //$NON-NLS-1$
+
 	private static final String GIT_PATH_PREFIX = "/GIT/"; //$NON-NLS-1$
 
 	private final ISecurePreferences preferences;
@@ -74,9 +76,10 @@ public class EGitSecureStore {
 		ISecurePreferences node = preferences.node(pathName);
 		String user = node.get(USER, ""); //$NON-NLS-1$
 		String password = node.get(PASSWORD, ""); //$NON-NLS-1$
+		String certPassword = node.get(CERTPASSWORD, ""); //$NON-NLS-1$
 		if (uri.getUser() != null && !user.equals(uri.getUser()))
 			return null;
-		return new UserPasswordCredentials(user, password);
+		return new UserPasswordCredentials(user, password, certPassword);
 	}
 
 	private String calcNodePath(URIish uri) {

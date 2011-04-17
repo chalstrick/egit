@@ -3002,6 +3002,9 @@ public class UIText extends NLS {
 	public static String LoginDialog_password;
 
 	/** */
+	public static String LoginDialog_certPassword;
+
+	/** */
 	public static String LoginDialog_repository;
 
 	/** */

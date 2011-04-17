@@ -41,6 +41,8 @@ public class EGitCredentialsProvider extends CredentialsProvider {
 				continue;
 			else if (i instanceof CredentialItem.Password)
 				continue;
+			else if (i instanceof CredentialItem.CertPassword)
+				continue;
 			else
 				return false;
 		}
@@ -52,12 +54,15 @@ public class EGitCredentialsProvider extends CredentialsProvider {
 			throws UnsupportedCredentialItem {
 		CredentialItem.Username userItem = null;
 		CredentialItem.Password passwordItem = null;
+		CredentialItem.CertPassword certPasswordItem = null;
 
 		for (CredentialItem item : items) {
 			if (item instanceof CredentialItem.Username)
 				userItem = (CredentialItem.Username) item;
 			else if (item instanceof CredentialItem.Password)
 				passwordItem = (CredentialItem.Password) item;
+			else if (item instanceof CredentialItem.CertPassword)
+				certPasswordItem = (CredentialItem.CertPassword) item;
 			else
 				throw new UnsupportedCredentialItem(uri, item.getPromptText());
 		}
@@ -73,6 +78,8 @@ public class EGitCredentialsProvider extends CredentialsProvider {
 			userItem.setValue(credentials.getUser());
 		if (passwordItem != null)
 			passwordItem.setValue(credentials.getPassword().toCharArray());
+		if (certPasswordItem != null)
+			certPasswordItem.setValue(credentials.getCertPassword().toCharArray());
 		return true;
 	}
 
