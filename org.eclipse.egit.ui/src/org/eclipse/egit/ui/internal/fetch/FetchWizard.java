@@ -30,7 +30,7 @@ import org.eclipse.jface.wizard.Wizard;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.transport.RemoteConfig;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.transport.StaticCredentialsProvider;
 import org.eclipse.osgi.util.NLS;
 
 /**
@@ -126,7 +126,7 @@ public class FetchWizard extends Wizard {
 
 		UserPasswordCredentials credentials = repoPage.getCredentials();
 		if (credentials != null)
-			op.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+			op.setCredentialsProvider(new StaticCredentialsProvider(
 					credentials.getUser(), credentials.getPassword()));
 
 		// even if a RemoteConfig is selected, we need to make sure to

@@ -28,7 +28,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.transport.URIish;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.transport.StaticCredentialsProvider;
 import org.eclipse.jgit.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -57,7 +57,7 @@ public class PushTest extends EGitTestCase {
 				remoteRepository.getUri()), true, null, localRepoPath, branch,
 				"origin", 30);
 		cloneOperation
-				.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+				.setCredentialsProvider(new StaticCredentialsProvider(
 						"agitter", "letmein"));
 		cloneOperation.run(null);
 		file = new File(localRepoPath, SampleTestRepository.A_txt_name);

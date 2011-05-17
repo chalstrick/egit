@@ -40,7 +40,7 @@ import org.eclipse.jface.wizard.IWizardContainer;
 import org.eclipse.jface.wizard.Wizard;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.transport.URIish;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.transport.StaticCredentialsProvider;
 import org.eclipse.jgit.util.FileUtils;
 import org.eclipse.osgi.util.NLS;
 
@@ -208,7 +208,7 @@ public class GitCloneWizard extends Wizard {
 		doGerritConfiguration(remoteName, op);
 		UserPasswordCredentials credentials = cloneSource.getCredentials();
 		if (credentials != null)
-			op.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+			op.setCredentialsProvider(new StaticCredentialsProvider(
 					credentials.getUser(), credentials.getPassword()));
 
 		alreadyClonedInto = workdir.getPath();

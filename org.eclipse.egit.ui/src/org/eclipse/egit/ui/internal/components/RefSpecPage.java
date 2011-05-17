@@ -30,7 +30,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.TagOpt;
 import org.eclipse.jgit.transport.URIish;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.transport.StaticCredentialsProvider;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
@@ -245,7 +245,7 @@ public class RefSpecPage extends WizardPage {
 			listRemotesOp = new ListRemoteOperation(local, uri, timeout);
 			if (credentials != null)
 				listRemotesOp
-						.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+						.setCredentialsProvider(new StaticCredentialsProvider(
 								credentials.getUser(), credentials.getPassword()));
 			getContainer().run(true, true, new IRunnableWithProgress() {
 				public void run(IProgressMonitor monitor)
