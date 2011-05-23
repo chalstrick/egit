@@ -150,7 +150,7 @@ public class PushOperationTest extends DualRepositoryTestCase {
 		// The following wait is currently needed on file
 		// systems with low time stamp accuracy or a buggy
 		// java.io.File.lastModified.
-		Thread.sleep(1000);
+		// Thread.sleep(1000);
 
 		AddToIndexOperation trop = new AddToIndexOperation(files);
 		trop.execute(null);
