@@ -24,8 +24,9 @@ import org.eclipse.ui.PlatformUI;
 
 /**
  * This class implements a {@link CredentialsProvider} for EGit. The provider
- * tries to retrieve the credentials (user, password) for a given URI from the
- * secure store. A login popup is shown if no credentials are available.
+ * tries to retrieve the credentials (user, password) for a given URI or the
+ * passphrase for a file containing private keys from the secure store. A login
+ * popup is shown if no credentials are available.
  */
 public class EGitCredentialsProvider extends CredentialsProvider {
 
@@ -38,6 +39,8 @@ public class EGitCredentialsProvider extends CredentialsProvider {
 	public boolean supports(CredentialItem... items) {
 		for (CredentialItem i : items) {
 			if (i instanceof CredentialItem.Username)
+				continue;
+			else if (i instanceof CredentialItem.Passphrase)
 				continue;
 			else if (i instanceof CredentialItem.Password)
 				continue;
@@ -52,33 +55,60 @@ public class EGitCredentialsProvider extends CredentialsProvider {
 			throws UnsupportedCredentialItem {
 		CredentialItem.Username userItem = null;
 		CredentialItem.Password passwordItem = null;
+		CredentialItem.Passphrase passphraseItem = null;
 
 		for (CredentialItem item : items) {
 			if (item instanceof CredentialItem.Username)
 				userItem = (CredentialItem.Username) item;
 			else if (item instanceof CredentialItem.Password)
 				passwordItem = (CredentialItem.Password) item;
+			else if (item instanceof CredentialItem.Passphrase)
+				passphraseItem = (CredentialItem.Passphrase) item;
 			else
 				throw new UnsupportedCredentialItem(uri, item.getPromptText());
 		}
 
-		UserPasswordCredentials credentials = getCredentialsFromSecureStore(uri);
-
-		if (credentials == null) {
-			credentials = getCredentialsFromUser(uri, passwordItem.getPromptText());
-			if (credentials == null)
-				return false;
+		UserPasswordCredentials credentials;
+		String passphrase;
+		if (userItem != null && passwordItem !=null) {
+			credentials = getCredentialsFromSecureStore(uri);
+			if (credentials == null) {
+				credentials = getCredentialsFromUser(uri, passwordItem.getPromptText());
+				if (credentials == null)
+					return false;
+			}
+			if (userItem != null)
+				userItem.setValue(credentials.getUser());
+			if (passwordItem != null)
+				passwordItem.setValue(credentials.getPassword().toCharArray());
+		} else if (passphraseItem != null) {
+			passphrase = getPassphraseFromSecureStore(uri);
+			if (passphrase == null) {
+				passphrase = getPassphraseFromUser(uri, passphraseItem.getPromptText());
+				if (passphrase == null)
+					return false;
+			}
+			if (passphraseItem != null)
+				passphraseItem.setValue(passphrase.toCharArray());
 		}
-		if (userItem != null)
-			userItem.setValue(credentials.getUser());
-		if (passwordItem != null)
-			passwordItem.setValue(credentials.getPassword().toCharArray());
 		return true;
 	}
 
 	private UserPasswordCredentials getCredentialsFromUser(final URIish uri, final String promptText) {
 		final AtomicReference<UserPasswordCredentials> aRef = new AtomicReference<UserPasswordCredentials>(
 				null);
+		PlatformUI.getWorkbench().getDisplay().syncExec(new Runnable() {
+			public void run() {
+				Shell shell = PlatformUI.getWorkbench()
+						.getActiveWorkbenchWindow().getShell();
+				aRef.set(LoginService.login(shell, uri, promptText));
+			}
+		});
+		return aRef.get();
+	}
+
+	private String getPassphraseFromUser(final URIish uri, final String promptText) {
+		final AtomicReference<String> aRef = new AtomicReference<String>(null);
 		PlatformUI.getWorkbench().getDisplay().syncExec(new Runnable() {
 			public void run() {
 				Shell shell = PlatformUI.getWorkbench()
@@ -99,6 +129,18 @@ public class EGitCredentialsProvider extends CredentialsProvider {
 					UIText.EGitCredentialsProvider_errorReadingCredentials, e);
 		}
 		return credentials;
+	}
+
+	private String getPassphraseFromSecureStore(final URIish uri) {
+		String passphrase;
+		try {
+			passphrase = Activator.getDefault().getSecureStore()
+					.getPassphrase(uri);
+		} catch (StorageException e) {
+			Activator.logError(
+					UIText.EGitCredentialsProvider_errorReadingCredentials, e);
+		}
+		return passphrase;
 	}
 
 }

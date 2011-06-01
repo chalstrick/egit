@@ -27,6 +27,8 @@ public class EGitSecureStore {
 
 	private static final String PASSWORD = "password"; //$NON-NLS-1$
 
+	private static final String PASSPHRASE = "passphrase"; //$NON-NLS-1$
+
 	private static final String GIT_PATH_PREFIX = "/GIT/"; //$NON-NLS-1$
 
 	private final ISecurePreferences preferences;
@@ -50,13 +52,18 @@ public class EGitSecureStore {
 	 * @throws StorageException
 	 * @throws IOException
 	 */
-	public void putCredentials(URIish uri, UserPasswordCredentials credentials)
+	public void putCredentials(URIish uri, EGitCredentials credentials)
 			throws StorageException, IOException {
 		String pathName = calcNodePath(uri);
 		ISecurePreferences node = preferences.node(pathName);
-		node.put(USER, credentials.getUser(), false);
-		node.put(PASSWORD, credentials.getPassword(), true);
-		node.flush();
+		if (credentials instanceof UserPasswordCredentials) {
+			node.put(USER, ((UserPasswordCredentials)credentials).getUser(), false);
+			node.put(PASSWORD, ((UserPasswordCredentials)credentials).getPassword(), true);
+			node.flush();
+		} if (credentials instanceof PassphraseCredentials) {
+			node.put(PASSPHRASE, ((PassphraseCredentials)credentials).getPassphrase(), false);
+			node.flush();
+		}
 	}
 
 	/**
@@ -66,18 +73,25 @@ public class EGitSecureStore {
 	 * @return credentials
 	 * @throws StorageException
 	 */
-	public UserPasswordCredentials getCredentials(URIish uri)
+	public EGitCredentials getCredentials(URIish uri)
 			throws StorageException {
 		String pathName = calcNodePath(uri);
 		if (!preferences.nodeExists(pathName))
 			return null;
 		ISecurePreferences node = preferences.node(pathName);
 		String user = node.get(USER, ""); //$NON-NLS-1$
-		String password = node.get(PASSWORD, ""); //$NON-NLS-1$
-		if (uri.getUser() != null && !user.equals(uri.getUser()))
-			return null;
-		return new UserPasswordCredentials(user, password);
+		if (user != null) {
+			String password = node.get(PASSWORD, ""); //$NON-NLS-1$
+			if (uri.getUser() != null && !user.equals(uri.getUser()))
+				return null;
+			return new UserPasswordCredentials(user, password);
+		} else {
+			String passphrase = node.get(PASSPHRASE, ""); //$NON-NLS-1$
+			return new PassphraseCredentials(passphrase);
+
+		}
 	}
+
 
 	static String calcNodePath(URIish uri) {
 		URIish storedURI = uri.setUser(null).setPass(null).setPath(null);

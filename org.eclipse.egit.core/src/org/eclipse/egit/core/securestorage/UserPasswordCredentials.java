@@ -12,7 +12,7 @@ package org.eclipse.egit.core.securestorage;
 /**
  * Implements a credentials object containing user and password.
  */
-public class UserPasswordCredentials {
+public class UserPasswordCredentials implements EGitCredentials {
 
 	private final String user;
 	private final String password;

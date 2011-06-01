@@ -9,7 +9,6 @@
  *******************************************************************************/
 package org.eclipse.egit.ui.credentials;
 
-import org.eclipse.egit.core.securestorage.UserPasswordCredentials;
 import org.eclipse.egit.ui.UIText;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.layout.GridDataFactory;
@@ -24,40 +23,34 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 
 /**
- * This class implements a login dialog asking for user and password for a given
- * URI.
+ * This class implements a login dialog asking for a passphrase. This is used
+ * when passphrases are needed to read certificates and private keys during https
+ * communication.
  */
-class LoginDialog extends Dialog {
+class LoginWithPassphraseDialog extends Dialog {
 
-	private Text user;
+	private Text passphraseText;
 
-	private Text password;
+	private String passphrase;
 
 	private Button storeCheckbox;
-
-	private UserPasswordCredentials credentials;
 
 	private boolean storeInSecureStore;
 
 	private final URIish uri;
 
-	private boolean isUserSet;
-
 	private boolean changeCredentials = false;
-
-	private String oldUser;
 
 	private String promptText;
 
-	LoginDialog(Shell shell, URIish uri) {
+	LoginWithPassphraseDialog(Shell shell, URIish uri) {
 		this(shell, uri, null);
 	}
 
-	LoginDialog(Shell shell, URIish uri, final String promptText) {
+	LoginWithPassphraseDialog(Shell shell, URIish uri, final String promptText) {
 		super(shell);
 		this.uri = uri;
 		this.promptText = promptText;
-		isUserSet = uri.getUser() != null && uri.getUser().length() > 0;
 	}
 
 	@Override
@@ -76,22 +69,10 @@ class LoginDialog extends Dialog {
 		Text uriText = new Text(composite, SWT.READ_ONLY);
 		uriText.setText(uri.toString());
 
-		Label userLabel = new Label(composite, SWT.NONE);
-		userLabel.setText(UIText.LoginDialog_user);
-		if (isUserSet) {
-			user = new Text(composite, SWT.BORDER | SWT.READ_ONLY);
-			user.setText(uri.getUser());
-		} else {
-			user = new Text(composite, SWT.BORDER);
-			if (oldUser != null)
-				user.setText(oldUser);
-		}
-		GridDataFactory.fillDefaults().grab(true, false).applyTo(user);
-
-		Label passwordLabel = new Label(composite, SWT.NONE);
-		passwordLabel.setText(UIText.LoginDialog_password);
-		password = new Text(composite, SWT.PASSWORD | SWT.BORDER);
-		GridDataFactory.fillDefaults().grab(true, false).applyTo(password);
+		Label passphraseLabel = new Label(composite, SWT.NONE);
+		passphraseLabel.setText(UIText.LoginDialog_passphrase);
+		passphraseText = new Text(composite, SWT.PASSWORD | SWT.BORDER);
+		GridDataFactory.fillDefaults().grab(true, false).applyTo(passphraseText);
 
 		if(!changeCredentials) {
 			Label storeLabel = new Label(composite, SWT.NONE);
@@ -100,12 +81,13 @@ class LoginDialog extends Dialog {
 			storeCheckbox.setSelection(true);
 		}
 
-		if (isUserSet)
-			password.setFocus();
-		else
-			user.setFocus();
+		passphraseText.setFocus();
 
 		return composite;
+	}
+
+	String getPassphrase() {
+		return passphrase;
 	}
 
 	boolean getStoreInSecureStore() {
@@ -114,9 +96,8 @@ class LoginDialog extends Dialog {
 
 	@Override
 	protected void okPressed() {
-		if (user.getText().length() > 0) {
-			credentials = new UserPasswordCredentials(user.getText(),
-					password.getText());
+		if (passphraseText.getText().length() > 0) {
+			passphrase = passphraseText.getText();
 			if(!changeCredentials)
 				storeInSecureStore = storeCheckbox.getSelection();
 		}
@@ -126,9 +107,4 @@ class LoginDialog extends Dialog {
 	void setChangeCredentials(boolean changeCredentials) {
 		this.changeCredentials = changeCredentials;
 	}
-
-	public void setOldUser(String oldUser) {
-		this.oldUser = oldUser;
-	}
-
 }

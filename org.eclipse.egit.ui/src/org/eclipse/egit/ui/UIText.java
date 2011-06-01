@@ -3185,6 +3185,9 @@ public class UIText extends NLS {
 	public static String LoginDialog_password;
 
 	/** */
+	public static String LoginDialog_passphrase;
+
+	/** */
 	public static String LoginDialog_repository;
 
 	/** */
