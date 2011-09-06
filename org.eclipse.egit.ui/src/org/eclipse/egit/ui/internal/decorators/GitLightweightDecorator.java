@@ -205,6 +205,9 @@ public class GitLightweightDecorator extends LabelProvider implements
 		if (resource == null)
 			return;
 
+		long startTime = System.currentTimeMillis();
+		System.out.println("Start Decorating " + resource.getFullPath());  //$NON-NLS-1$
+		try {
 		// Step 1: Perform cheap tests
 
 		// Don't decorate if the workbench is not running
@@ -306,6 +309,9 @@ public class GitLightweightDecorator extends LabelProvider implements
 		GitDecoratorJob.getJobForRepository(
 				mapping.getGitDirAbsolutePath().toString())
 				.addDecorationRequest(element);
+		} finally {
+			System.out.println("Decorating " + resource.getFullPath() + " took " + (System.currentTimeMillis() - startTime));  //$NON-NLS-1$ //$NON-NLS-2$
+		}
 	}
 
 	/**

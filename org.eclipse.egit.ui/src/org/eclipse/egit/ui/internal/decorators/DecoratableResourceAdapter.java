@@ -28,6 +28,7 @@ import org.eclipse.egit.core.IteratorService;
 import org.eclipse.egit.core.project.RepositoryMapping;
 import org.eclipse.egit.ui.Activator;
 import org.eclipse.egit.ui.UIPreferences;
+import org.eclipse.egit.ui.internal.decorators.IDecoratableResource.Staged;
 import org.eclipse.egit.ui.internal.trace.GitTraceLocation;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jgit.dircache.DirCacheIterator;
@@ -35,6 +36,7 @@ import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.IndexDiff;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -79,20 +81,14 @@ class DecoratableResourceAdapter extends DecoratableResource {
 					.getRepositoryName(repository);
 			branch = DecoratableResourceHelper.getShortBranch(repository);
 
-			TreeWalk treeWalk = createThreeWayTreeWalk();
-			if (treeWalk == null)
-				return;
-
 			switch (resource.getType()) {
 			case IResource.FILE:
-				if (!treeWalk.next())
-					return;
-				extractResourceProperties(treeWalk);
+				extractResourceProperties(resource);
 				break;
 			case IResource.PROJECT:
 				tracked = true;
 			case IResource.FOLDER:
-				extractContainerProperties(treeWalk);
+				extractContainerProperties(resource);
 				break;
 			}
 		} finally {
@@ -105,8 +101,33 @@ class DecoratableResourceAdapter extends DecoratableResource {
 		}
 	}
 
-	private void extractResourceProperties(TreeWalk treeWalk) throws IOException {
-		DecoratableResourceHelper.decorateResource(this, treeWalk);
+	private void extractResourceProperties(IResource resource) throws IOException {
+		IndexDiff cache = new IndexDiff(null, null, null);
+		String repoRelativePath = makeRepoRelative(resource);
+
+		// ignored
+		Set<String> untracked = cache.getUntracked();
+		tracked = !untracked.contains(repoRelativePath);
+
+		Set<String> added = cache.getAdded();
+		Set<String> removed = cache.getRemoved();
+		Set<String> changed = cache.getChanged();
+		if (added.contains(repoRelativePath)) // added
+			staged = Staged.ADDED;
+		else if (removed.contains(repoRelativePath)) // removed
+			staged = Staged.REMOVED;
+		else if (changed.contains(repoRelativePath)) // changed and added into index
+			staged = Staged.MODIFIED;
+		else
+			staged = Staged.NOT_STAGED;
+
+		// conflicting
+		Set<String> conflicting = cache.getConflicting();
+		conflicts = conflicting.contains(repoRelativePath);
+
+		// locally modified
+		Set<String> modified = cache.getModified();
+		dirty = modified.contains(repoRelativePath);
 	}
 
 	private class RecursiveStateFilter extends TreeFilter {
@@ -262,12 +283,43 @@ class DecoratableResourceAdapter extends DecoratableResource {
 		}
 	}
 
-	private void extractContainerProperties(TreeWalk treeWalk) throws IOException {
-		treeWalk.setFilter(AndTreeFilter.create(treeWalk.getFilter(),
-				new RecursiveStateFilter()));
-		treeWalk.setRecursive(true);
+	private void extractContainerProperties(IResource resource) {
+		IndexDiff cache = new IndexDiff(null, null, null);
+		String repoRelativePath = makeRepoRelative(resource);
 
-		treeWalk.next();
+		// ignored
+		Set<String> untracked = cache.getUntracked();
+
+		tracked = containsPrefix(untracked, repoRelativePath);
+
+		Set<String> added = cache.getAdded();
+		Set<String> removed = cache.getRemoved();
+		Set<String> changed = cache.getChanged();
+		if (containsPrefix(added, repoRelativePath)) // added
+			staged = Staged.ADDED;
+		else if (removed.contains(repoRelativePath)) // removed
+			staged = Staged.REMOVED;
+		else if (changed.contains(repoRelativePath)) // changed and added into index
+			staged = Staged.MODIFIED;
+		else
+			staged = Staged.NOT_STAGED;
+
+		// conflicting
+		Set<String> conflicting = cache.getConflicting();
+		conflicts = conflicting.contains(repoRelativePath);
+
+		// locally modified
+		Set<String> modified = cache.getModified();
+		dirty = containsPrefix(modified, repoRelativePath);
+	}
+
+	private boolean containsPrefix(Set<String> collection, String prefix) {
+		for (String path : collection) {
+			if (path.startsWith(prefix))
+				return true;
+		}
+
+		return false;
 	}
 
 	/**

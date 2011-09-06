@@ -75,8 +75,11 @@ public class GitDecoratorJob extends Job {
 
 	@Override
 	public IStatus run(IProgressMonitor monitor) {
+		long startTime = System.currentTimeMillis();
+		System.out.println("GitDecoratorJob.run: Start Decorating repo " + getName());  //$NON-NLS-1$
 		while (!elementList.isEmpty()) {
 			final Object[] elements;
+
 			synchronized (this) {
 				// Get decoration requests as array and clear the queue
 				elements = elementList.toArray(new Object[elementList.size()]);
@@ -95,6 +98,7 @@ public class GitDecoratorJob extends Job {
 							"An error occurred during resource decoration", e); //$NON-NLS-1$
 			}
 		}
+		System.out.println("GitDecoratorJob.run: " + getName() + " took " + (System.currentTimeMillis() - startTime));  //$NON-NLS-1$ //$NON-NLS-2$
 		return Status.OK_STATUS;
 	}
 }
