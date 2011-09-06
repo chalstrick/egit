@@ -14,38 +14,18 @@
 
 package org.eclipse.egit.ui.internal.decorators;
 
+import static org.eclipse.jgit.lib.Repository.stripWorkDir;
+
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Set;
 
 import org.eclipse.core.resources.IResource;
-import org.eclipse.core.runtime.IPath;
-import org.eclipse.core.runtime.Path;
-import org.eclipse.egit.core.AdaptableFileTreeIterator;
-import org.eclipse.egit.core.ContainerTreeIterator;
-import org.eclipse.egit.core.ContainerTreeIterator.ResourceEntry;
-import org.eclipse.egit.core.IteratorService;
 import org.eclipse.egit.core.project.RepositoryMapping;
-import org.eclipse.egit.ui.Activator;
-import org.eclipse.egit.ui.UIPreferences;
-import org.eclipse.egit.ui.internal.decorators.IDecoratableResource.Staged;
 import org.eclipse.egit.ui.internal.trace.GitTraceLocation;
-import org.eclipse.jface.preference.IPreferenceStore;
-import org.eclipse.jgit.dircache.DirCacheIterator;
-import org.eclipse.jgit.errors.IncorrectObjectTypeException;
-import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.IndexDiff;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.treewalk.EmptyTreeIterator;
-import org.eclipse.jgit.treewalk.TreeWalk;
-import org.eclipse.jgit.treewalk.WorkingTreeIterator;
-import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
-import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
-import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
 
 class DecoratableResourceAdapter extends DecoratableResource {
 
@@ -53,11 +33,9 @@ class DecoratableResourceAdapter extends DecoratableResource {
 
 	private final Repository repository;
 
-	private final ObjectId headId;
-
-	private final IPreferenceStore store;
-
 	private final boolean trace;
+
+	private IndexDiff cache;
 
 	@SuppressWarnings("fallthrough")
 	public DecoratableResourceAdapter(IResource resourceToWrap)
@@ -74,8 +52,8 @@ class DecoratableResourceAdapter extends DecoratableResource {
 		try {
 			mapping = RepositoryMapping.getMapping(resource);
 			repository = mapping.getRepository();
-			headId = repository.resolve(Constants.HEAD);
-			store = Activator.getDefault().getPreferenceStore();
+			cache = new IndexDiff(repository, Constants.HEAD, new FileTreeIterator(repository));
+			cache.diff();
 
 			repositoryName = DecoratableResourceHelper
 					.getRepositoryName(repository);
@@ -83,12 +61,12 @@ class DecoratableResourceAdapter extends DecoratableResource {
 
 			switch (resource.getType()) {
 			case IResource.FILE:
-				extractResourceProperties(resource);
+				extractResourceProperties();
 				break;
 			case IResource.PROJECT:
 				tracked = true;
 			case IResource.FOLDER:
-				extractContainerProperties(resource);
+				extractContainerProperties();
 				break;
 			}
 		} finally {
@@ -101,8 +79,7 @@ class DecoratableResourceAdapter extends DecoratableResource {
 		}
 	}
 
-	private void extractResourceProperties(IResource resource) throws IOException {
-		IndexDiff cache = new IndexDiff(null, null, null);
+	private void extractResourceProperties() {
 		String repoRelativePath = makeRepoRelative(resource);
 
 		// ignored
@@ -130,187 +107,39 @@ class DecoratableResourceAdapter extends DecoratableResource {
 		dirty = modified.contains(repoRelativePath);
 	}
 
-	private class RecursiveStateFilter extends TreeFilter {
-
-		private int filesChecked = 0;
-
-		private int targetDepth = -1;
-
-		private final int recurseLimit;
-
-		public RecursiveStateFilter() {
-			recurseLimit = store
-					.getInt(UIPreferences.DECORATOR_RECURSIVE_LIMIT);
-		}
-
-		@Override
-		public boolean include(TreeWalk treeWalk)
-				throws MissingObjectException, IncorrectObjectTypeException,
-				IOException {
-			if (trace)
-				GitTraceLocation.getTrace().trace(
-						GitTraceLocation.DECORATION.getLocation(),
-						treeWalk.getPathString());
-			final WorkingTreeIterator workingTreeIterator = treeWalk.getTree(
-					DecoratableResourceHelper.T_WORKSPACE,
-					WorkingTreeIterator.class);
-			if (workingTreeIterator != null) {
-				if (workingTreeIterator instanceof ContainerTreeIterator) {
-					final ContainerTreeIterator workspaceIterator =
-						(ContainerTreeIterator) workingTreeIterator;
-					ResourceEntry resourceEntry = workspaceIterator
-							.getResourceEntry();
-					if (resource.equals(resourceEntry.getResource())
-							&& workspaceIterator.isEntryIgnored()) {
-						ignored = true;
-						return false;
-					}
-					if (resource.getFullPath().isPrefixOf(
-							resourceEntry.getResource().getFullPath())
-							&& treeWalk
-									.getFileMode(DecoratableResourceHelper.T_HEAD) == FileMode.MISSING
-							&& treeWalk
-									.getFileMode(DecoratableResourceHelper.T_INDEX) == FileMode.MISSING) {
-						// we reached the folder to decorate (or are beyond)
-						// we can cut if the current entry does not
-						// exist in head and index
-						if (trace)
-							GitTraceLocation.getTrace().trace(
-									GitTraceLocation.DECORATION.getLocation(),
-									"CUT"); //$NON-NLS-1$
-						return false;
-					}
-
-				} else {
-					// For the project resource, it's still the
-					// AdaptableFileTreeIterator. So we have to compare the path
-					// of the resource with path of the iterator
-					IPath wdPath = new Path(repository.getWorkTree()
-							.getAbsolutePath()).append(workingTreeIterator
-							.getEntryPathString());
-					IPath resPath = resource.getLocation();
-					if (wdPath.equals(resPath)
-							&& workingTreeIterator.isEntryIgnored()) {
-						ignored = true;
-						return false;
-
-					}
-					if (resPath.isPrefixOf(wdPath)
-							&& treeWalk
-									.getFileMode(DecoratableResourceHelper.T_HEAD) == FileMode.MISSING
-							&& treeWalk
-									.getFileMode(DecoratableResourceHelper.T_INDEX) == FileMode.MISSING) {
-						// we reached the folder to decorate (or are beyond)
-						// we can cut if the current entry does not
-						// exist in head and index
-						if (trace)
-							GitTraceLocation.getTrace().trace(
-									GitTraceLocation.DECORATION.getLocation(),
-									"CUT"); //$NON-NLS-1$
-						return false;
-					}
-				}
-			}
-
-			if (FileMode.TREE.equals(treeWalk
-					.getRawMode(DecoratableResourceHelper.T_WORKSPACE)))
-				return shouldRecurse(treeWalk);
-
-			// Backup current state so far
-			Staged wasStaged = staged;
-			boolean wasDirty = dirty;
-			boolean hadConflicts = conflicts;
-
-			extractResourceProperties(treeWalk);
-			filesChecked++;
-
-			// Merge results with old state
-			ignored = false;
-			assumeValid = false;
-			dirty = wasDirty || dirty;
-			conflicts = hadConflicts || conflicts;
-			if (staged != wasStaged && filesChecked > 1)
-				staged = Staged.MODIFIED;
-
-			return false;
-		}
-
-		private boolean shouldRecurse(TreeWalk treeWalk) throws IOException {
-			final WorkingTreeIterator workspaceIterator = treeWalk.getTree(
-					DecoratableResourceHelper.T_WORKSPACE,
-					WorkingTreeIterator.class);
-
-			if (workspaceIterator instanceof AdaptableFileTreeIterator)
-				return true;
-
-			ResourceEntry resourceEntry = null;
-			if (workspaceIterator != null)
-				resourceEntry = ((ContainerTreeIterator) workspaceIterator)
-						.getResourceEntry();
-
-			if (resourceEntry == null)
-				return true;
-
-			IResource visitingResource = resourceEntry.getResource();
-			if (targetDepth == -1) {
-				if (visitingResource.equals(resource)
-						|| visitingResource.getParent().equals(resource))
-					targetDepth = treeWalk.getDepth();
-				else
-					return true;
-			}
-
-			if ((treeWalk.getDepth() - targetDepth) >= recurseLimit) {
-				if (visitingResource.equals(resource))
-					extractResourceProperties(treeWalk);
-
-				return false;
-			}
-
-			return true;
-		}
-
-		@Override
-		public TreeFilter clone() {
-			RecursiveStateFilter clone = new RecursiveStateFilter();
-			clone.filesChecked = this.filesChecked;
-			return clone;
-		}
-
-		@Override
-		public boolean shouldBeRecursive() {
-			return true;
-		}
-	}
-
-	private void extractContainerProperties(IResource resource) {
-		IndexDiff cache = new IndexDiff(null, null, null);
+	private void extractContainerProperties() {
 		String repoRelativePath = makeRepoRelative(resource);
 
 		// ignored
 		Set<String> untracked = cache.getUntracked();
 
-		tracked = containsPrefix(untracked, repoRelativePath);
+		tracked = !containsPrefix(untracked, repoRelativePath);
+		if (!tracked)
+			return;
 
 		Set<String> added = cache.getAdded();
 		Set<String> removed = cache.getRemoved();
 		Set<String> changed = cache.getChanged();
 		if (containsPrefix(added, repoRelativePath)) // added
 			staged = Staged.ADDED;
-		else if (removed.contains(repoRelativePath)) // removed
+		else if (containsPrefix(removed, repoRelativePath)) // removed
 			staged = Staged.REMOVED;
-		else if (changed.contains(repoRelativePath)) // changed and added into index
+		else if (containsPrefix(changed, repoRelativePath)) // changed and added into index
 			staged = Staged.MODIFIED;
 		else
 			staged = Staged.NOT_STAGED;
 
 		// conflicting
 		Set<String> conflicting = cache.getConflicting();
-		conflicts = conflicting.contains(repoRelativePath);
+		conflicts = containsPrefix(conflicting, repoRelativePath);
 
 		// locally modified
 		Set<String> modified = cache.getModified();
 		dirty = containsPrefix(modified, repoRelativePath);
+	}
+
+	private String makeRepoRelative(IResource res) {
+		return stripWorkDir(repository.getWorkTree(), res.getLocation().toFile());
 	}
 
 	private boolean containsPrefix(Set<String> collection, String prefix) {
@@ -321,68 +150,4 @@ class DecoratableResourceAdapter extends DecoratableResource {
 
 		return false;
 	}
-
-	/**
-	 * Adds a filter to the specified tree walk limiting the results to only
-	 * those matching the resource specified by <code>resourceToFilterBy</code>
-	 * <p>
-	 * If the resource does not exists in the current repository, no filter is
-	 * added and the method returns <code>false</code>. If the resource is a
-	 * project, no filter is added, but the operation is considered a success.
-	 *
-	 * @param treeWalk
-	 *            the tree walk to add the filter to
-	 * @param resourceToFilterBy
-	 *            the resource to filter by
-	 *
-	 * @return <code>true</code> if the filter could be added,
-	 *         <code>false</code> otherwise
-	 */
-	private boolean addResourceFilter(final TreeWalk treeWalk,
-			final IResource resourceToFilterBy) {
-		String repoRelativePath = mapping
-						.getRepoRelativePath(resourceToFilterBy);
-		if (repoRelativePath==null)
-			return false;
-		Set<String> repositoryPaths = Collections.singleton(repoRelativePath);
-		if (repositoryPaths.isEmpty())
-			return false;
-
-		if (repositoryPaths.contains("")) //$NON-NLS-1$
-			return true; // Project filter
-
-		treeWalk.setFilter(PathFilterGroup.createFromStrings(repositoryPaths));
-		return true;
-	}
-
-	/**
-	 * Helper method to create a new tree walk between the repository, the
-	 * index, and the working tree.
-	 *
-	 * @return the created tree walk, or null if it could not be created
-	 * @throws IOException
-	 *             if there were errors when creating the tree walk
-	 */
-	private TreeWalk createThreeWayTreeWalk() throws IOException {
-		final TreeWalk treeWalk = new TreeWalk(repository);
-		if (!addResourceFilter(treeWalk, resource))
-			return null;
-
-		treeWalk.setRecursive(treeWalk.getFilter().shouldBeRecursive());
-		treeWalk.reset();
-
-		// Repository
-		if (headId != null)
-			treeWalk.addTree(new RevWalk(repository).parseTree(headId));
-		else
-			treeWalk.addTree(new EmptyTreeIterator());
-
-		// Index
-		treeWalk.addTree(new DirCacheIterator(DecoratableResourceHelper.getDirCache(repository)));
-
-		// Working directory
-		treeWalk.addTree(IteratorService.createInitialIterator(repository));
-		return treeWalk;
-	}
-
 }
