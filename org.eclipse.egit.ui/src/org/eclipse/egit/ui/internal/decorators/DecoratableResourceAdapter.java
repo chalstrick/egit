@@ -16,7 +16,10 @@ package org.eclipse.egit.ui.internal.decorators;
 
 import static org.eclipse.jgit.lib.Repository.stripWorkDir;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.core.resources.IResource;
@@ -35,6 +38,8 @@ class DecoratableResourceAdapter extends DecoratableResource {
 
 	private final boolean trace;
 
+	private static Map<File, IndexDiff> mainCache = new HashMap<File, IndexDiff>();
+
 	private IndexDiff cache;
 
 	@SuppressWarnings("fallthrough")
@@ -52,8 +57,13 @@ class DecoratableResourceAdapter extends DecoratableResource {
 		try {
 			mapping = RepositoryMapping.getMapping(resource);
 			repository = mapping.getRepository();
-			cache = new IndexDiff(repository, Constants.HEAD, new FileTreeIterator(repository));
-			cache.diff();
+			cache = mainCache.get(repository.getWorkTree());
+			if (cache == null) {
+				cache = new IndexDiff(repository, Constants.HEAD,
+						new FileTreeIterator(repository));
+				cache.diff();
+				mainCache.put(repository.getWorkTree(), cache);
+			}
 
 			repositoryName = DecoratableResourceHelper
 					.getRepositoryName(repository);
@@ -110,21 +120,15 @@ class DecoratableResourceAdapter extends DecoratableResource {
 	private void extractContainerProperties() {
 		String repoRelativePath = makeRepoRelative(resource);
 
-		// ignored
-		Set<String> untracked = cache.getUntracked();
+		// only file can be not tracked.
+		tracked = true;
 
-		tracked = !containsPrefix(untracked, repoRelativePath);
-		if (!tracked)
-			return;
-
-		Set<String> added = cache.getAdded();
-		Set<String> removed = cache.getRemoved();
+		// containers are marked as staged whenever file was added, removed or
+		// changed
 		Set<String> changed = cache.getChanged();
-		if (containsPrefix(added, repoRelativePath)) // added
-			staged = Staged.ADDED;
-		else if (containsPrefix(removed, repoRelativePath)) // removed
-			staged = Staged.REMOVED;
-		else if (containsPrefix(changed, repoRelativePath)) // changed and added into index
+		changed.addAll(cache.getAdded());
+		changed.addAll(cache.getRemoved());
+		if (containsPrefix(changed, repoRelativePath))
 			staged = Staged.MODIFIED;
 		else
 			staged = Staged.NOT_STAGED;
@@ -139,12 +143,34 @@ class DecoratableResourceAdapter extends DecoratableResource {
 	}
 
 	private String makeRepoRelative(IResource res) {
-		return stripWorkDir(repository.getWorkTree(), res.getLocation().toFile());
+		return stripWorkDir(repository.getWorkTree(), res.getLocation()
+				.toFile());
 	}
 
 	private boolean containsPrefix(Set<String> collection, String prefix) {
+		// when prefix is empty we are handling repository root, therefore we
+		// should return true whenever collection isn't empty
+		if (prefix.length() == 0 && !collection.isEmpty())
+			return true;
+
+		// compare also root name; we don't want that folder "ui" would be
+		// marked as changed when there are changes in "ui.test"
+		String prefixRootName;
+		int firstSeparator = prefix.indexOf("/"); //$NON-NLS-1$
+		if (firstSeparator > -1)
+			prefixRootName = prefix.substring(0, firstSeparator);
+		else
+			prefixRootName = prefix;
+
 		for (String path : collection) {
-			if (path.startsWith(prefix))
+			String rootName;
+			firstSeparator = path.indexOf("/"); //$NON-NLS-1$
+			if (firstSeparator > -1)
+				rootName = path.substring(0, firstSeparator);
+			else
+				rootName = path;
+
+			if (prefixRootName.equals(rootName) && path.startsWith(prefix))
 				return true;
 		}
 
