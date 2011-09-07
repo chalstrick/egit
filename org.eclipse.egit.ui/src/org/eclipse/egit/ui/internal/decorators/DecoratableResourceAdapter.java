@@ -16,19 +16,15 @@ package org.eclipse.egit.ui.internal.decorators;
 
 import static org.eclipse.jgit.lib.Repository.stripWorkDir;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.core.resources.IResource;
+import org.eclipse.egit.core.Activator;
+import org.eclipse.egit.core.internal.indexdiff.IndexDiffData;
 import org.eclipse.egit.core.project.RepositoryMapping;
 import org.eclipse.egit.ui.internal.trace.GitTraceLocation;
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.IndexDiff;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.treewalk.FileTreeIterator;
 
 class DecoratableResourceAdapter extends DecoratableResource {
 
@@ -37,10 +33,6 @@ class DecoratableResourceAdapter extends DecoratableResource {
 	private final Repository repository;
 
 	private final boolean trace;
-
-	private static Map<File, IndexDiff> mainCache = new HashMap<File, IndexDiff>();
-
-	private IndexDiff cache;
 
 	@SuppressWarnings("fallthrough")
 	public DecoratableResourceAdapter(IResource resourceToWrap)
@@ -57,13 +49,6 @@ class DecoratableResourceAdapter extends DecoratableResource {
 		try {
 			mapping = RepositoryMapping.getMapping(resource);
 			repository = mapping.getRepository();
-			cache = mainCache.get(repository.getWorkTree());
-			if (cache == null) {
-				cache = new IndexDiff(repository, Constants.HEAD,
-						new FileTreeIterator(repository));
-				cache.diff();
-				mainCache.put(repository.getWorkTree(), cache);
-			}
 
 			repositoryName = DecoratableResourceHelper
 					.getRepositoryName(repository);
@@ -91,6 +76,7 @@ class DecoratableResourceAdapter extends DecoratableResource {
 
 	private void extractResourceProperties() {
 		String repoRelativePath = makeRepoRelative(resource);
+		IndexDiffData cache = Activator.getDefault().getIndexDiffCache().getIndexDiffCacheEntry(repository).getIndexDiff();
 
 		// ignored
 		Set<String> untracked = cache.getUntracked();
@@ -119,6 +105,7 @@ class DecoratableResourceAdapter extends DecoratableResource {
 
 	private void extractContainerProperties() {
 		String repoRelativePath = makeRepoRelative(resource);
+		IndexDiffData cache = Activator.getDefault().getIndexDiffCache().getIndexDiffCacheEntry(repository).getIndexDiff();
 
 		// only file can be not tracked.
 		tracked = true;
