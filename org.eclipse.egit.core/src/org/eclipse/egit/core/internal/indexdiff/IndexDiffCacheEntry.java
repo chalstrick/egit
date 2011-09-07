@@ -163,7 +163,12 @@ public class IndexDiffCacheEntry {
 	private void notifyListeners() {
 		IndexDiffChangedListener[] tmpListeners;
 		synchronized (listeners) {
-			tmpListeners = listeners.toArray(new IndexDiffChangedListener[listeners.size()]);
+			int size = listeners.size();
+			size += Activator.getDefault().getIndexDiffCache().globalListeners.size();
+			Set<IndexDiffChangedListener> tmpSet = new HashSet<IndexDiffChangedListener>(size);
+			tmpSet.addAll(listeners);
+			tmpSet.addAll(Activator.getDefault().getIndexDiffCache().globalListeners);
+			tmpListeners = tmpSet.toArray(new IndexDiffChangedListener[size]);
 		}
 		for (int i = 0; i < tmpListeners.length; i++) {
 			tmpListeners[i].indexDiffChanged(repository, indexDiffData);

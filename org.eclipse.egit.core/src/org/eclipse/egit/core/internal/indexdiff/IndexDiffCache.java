@@ -1,7 +1,9 @@
 package org.eclipse.egit.core.internal.indexdiff;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.jgit.lib.Repository;
 
@@ -10,6 +12,7 @@ import org.eclipse.jgit.lib.Repository;
  *
  */
 public class IndexDiffCache {
+	Set<IndexDiffChangedListener> globalListeners = new HashSet<IndexDiffChangedListener>();
 
 	private Map<Repository, IndexDiffCacheEntry> entries = new HashMap<Repository, IndexDiffCacheEntry>();
 
@@ -27,5 +30,14 @@ public class IndexDiffCache {
 			entries.put(repository, entry);
 		}
 		return entry;
+	}
+
+	/**
+	 * @param listener
+	 */
+	public void addIndexDiffChangedListener(IndexDiffChangedListener listener) {
+		synchronized(globalListeners) {
+			globalListeners.add(listener);
+		}
 	}
 }
