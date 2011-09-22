@@ -46,6 +46,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.swtbot.eclipse.finder.widgets.SWTBotView;
 import org.eclipse.swtbot.swt.finder.widgets.SWTBotTree;
 import org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem;
+import org.eclipse.ui.PlatformUI;
 import org.junit.After;
 
 /**
@@ -245,6 +246,11 @@ public abstract class GitRepositoriesViewTestBase extends
 				.getReference().getPart(false);
 		view.refresh();
 		TestUtil.joinJobs(JobFamilies.REPO_VIEW_REFRESH);
+		PlatformUI.getWorkbench().getDisplay().syncExec(new Runnable(){
+			public void run() {
+				// empty
+			}
+		});		
 	}
 
 	@SuppressWarnings("boxing")
