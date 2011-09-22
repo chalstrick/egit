@@ -35,6 +35,8 @@ class DecoratableResourceAdapter extends DecoratableResource {
 
 	private final boolean trace;
 
+	private IndexDiffData indexDiffData;
+
 	@SuppressWarnings("fallthrough")
 	public DecoratableResourceAdapter(IResource resourceToWrap)
 			throws IOException {
@@ -49,7 +51,17 @@ class DecoratableResourceAdapter extends DecoratableResource {
 		}
 		try {
 			mapping = RepositoryMapping.getMapping(resource);
+			if (mapping == null) {
+				repository = null;
+				return;
+			}
 			repository = mapping.getRepository();
+			if (repository == null)
+				return;
+			indexDiffData = Activator.getDefault().getIndexDiffCache()
+					.getIndexDiffCacheEntry(repository).getIndexDiff();
+			if (indexDiffData == null)
+				return;
 
 			repositoryName = DecoratableResourceHelper
 					.getRepositoryName(repository);
@@ -77,15 +89,14 @@ class DecoratableResourceAdapter extends DecoratableResource {
 
 	private void extractResourceProperties() {
 		String repoRelativePath = makeRepoRelative(resource);
-		IndexDiffData cache = Activator.getDefault().getIndexDiffCache().getIndexDiffCacheEntry(repository).getIndexDiff();
 
 		// ignored
-		Set<String> untracked = cache.getUntracked();
+		Set<String> untracked = indexDiffData.getUntracked();
 		tracked = !untracked.contains(repoRelativePath);
 
-		Set<String> added = cache.getAdded();
-		Set<String> removed = cache.getRemoved();
-		Set<String> changed = cache.getChanged();
+		Set<String> added = indexDiffData.getAdded();
+		Set<String> removed = indexDiffData.getRemoved();
+		Set<String> changed = indexDiffData.getChanged();
 		if (added.contains(repoRelativePath)) // added
 			staged = Staged.ADDED;
 		else if (removed.contains(repoRelativePath)) // removed
@@ -96,37 +107,36 @@ class DecoratableResourceAdapter extends DecoratableResource {
 			staged = Staged.NOT_STAGED;
 
 		// conflicting
-		Set<String> conflicting = cache.getConflicting();
+		Set<String> conflicting = indexDiffData.getConflicting();
 		conflicts = conflicting.contains(repoRelativePath);
 
 		// locally modified
-		Set<String> modified = cache.getModified();
+		Set<String> modified = indexDiffData.getModified();
 		dirty = modified.contains(repoRelativePath);
 	}
 
 	private void extractContainerProperties() {
 		String repoRelativePath = makeRepoRelative(resource) + "/"; //$NON-NLS-1$
-		IndexDiffData cache = Activator.getDefault().getIndexDiffCache().getIndexDiffCacheEntry(repository).getIndexDiff();
 
 		// only file can be not tracked.
 		tracked = true;
 
 		// containers are marked as staged whenever file was added, removed or
 		// changed
-		Set<String> changed = new HashSet<String>(cache.getChanged());
-		changed.addAll(cache.getAdded());
-		changed.addAll(cache.getRemoved());
+		Set<String> changed = new HashSet<String>(indexDiffData.getChanged());
+		changed.addAll(indexDiffData.getAdded());
+		changed.addAll(indexDiffData.getRemoved());
 		if (containsPrefix(changed, repoRelativePath))
 			staged = Staged.MODIFIED;
 		else
 			staged = Staged.NOT_STAGED;
 
 		// conflicting
-		Set<String> conflicting = cache.getConflicting();
+		Set<String> conflicting = indexDiffData.getConflicting();
 		conflicts = containsPrefix(conflicting, repoRelativePath);
 
 		// locally modified
-		Set<String> modified = cache.getModified();
+		Set<String> modified = indexDiffData.getModified();
 		dirty = containsPrefix(modified, repoRelativePath);
 	}
 

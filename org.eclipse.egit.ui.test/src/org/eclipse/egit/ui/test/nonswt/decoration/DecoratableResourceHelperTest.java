@@ -8,23 +8,31 @@
  *******************************************************************************/
 package org.eclipse.egit.ui.test.nonswt.decoration;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IWorkspaceRoot;
 import org.eclipse.core.resources.ResourcesPlugin;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.egit.core.Activator;
 import org.eclipse.egit.core.GitProvider;
+import org.eclipse.egit.core.internal.indexdiff.IndexDiffData;
 import org.eclipse.egit.core.project.GitProjectData;
 import org.eclipse.egit.core.project.RepositoryMapping;
 import org.eclipse.egit.ui.internal.decorators.DecoratableResource;
 import org.eclipse.egit.ui.internal.decorators.DecoratableResourceHelper;
 import org.eclipse.egit.ui.internal.decorators.IDecoratableResource;
 import org.eclipse.egit.ui.internal.decorators.IDecoratableResource.Staged;
+import org.eclipse.jface.operation.IRunnableWithProgress;
+import org.eclipse.jface.operation.ModalContext;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
 import org.eclipse.jgit.junit.LocalDiskRepositoryTestCase;
@@ -33,6 +41,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepository;
 import org.eclipse.team.core.RepositoryProvider;
+import org.eclipse.ui.PlatformUI;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,6 +51,8 @@ public class DecoratableResourceHelperTest extends LocalDiskRepositoryTestCase {
 	private static final String TEST_PROJECT = "TestProject";
 
 	private static final String TEST_FILE = "TestFile";
+
+	private static final int MAX_RETRIES = 500;
 
 	private File gitDir;
 
@@ -61,6 +72,8 @@ public class DecoratableResourceHelperTest extends LocalDiskRepositoryTestCase {
 
 		repository = new FileRepository(gitDir);
 		repository.create();
+		repository.close();
+		repository = Activator.getDefault().getRepositoryCache().lookupRepository(gitDir);
 
 		project = root.getProject(TEST_PROJECT);
 		project.create(null);
@@ -78,6 +91,26 @@ public class DecoratableResourceHelperTest extends LocalDiskRepositoryTestCase {
 		git = new Git(repository);
 		git.add().addFilepattern(".").call();
 		git.commit().setMessage("Initial commit").call();
+		
+		waitForIndexDiff();
+	}
+
+	private void waitForIndexDiff() throws Exception {
+		final AtomicReference<IndexDiffData> indexDiffRef = new AtomicReference<IndexDiffData>();
+		ModalContext.run(new IRunnableWithProgress() {
+			public void run(IProgressMonitor arg0) throws InvocationTargetException,
+					InterruptedException {
+				IndexDiffData indexDiff = null;
+				int retries = 0;
+				do {
+					indexDiff = Activator.getDefault().getIndexDiffCache().getIndexDiffCacheEntry(repository).getIndexDiff();
+					retries++;
+					Thread.sleep(20);
+				} while (indexDiff == null && retries < MAX_RETRIES);
+				indexDiffRef.set(indexDiff);
+			}
+		}, true, new NullProgressMonitor(), PlatformUI.getWorkbench().getDisplay());
+		assertNotNull("Timed out waiting for indexDiff", indexDiffRef.get());
 	}
 
 	@After
